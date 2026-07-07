@@ -1,0 +1,97 @@
+
+name: Android CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: List files for debugging
+      run: ls -la
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+    
+    - name: Create gradle wrapper directory
+      run: mkdir -p gradle/wrapper
+    
+    - name: Download gradle-wrapper.jar with retry
+      run: |
+        for i in 1 2 3; do
+          curl -L --fail https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar && break
+          echo "Retry $i failed, trying again..."
+          sleep 2
+        done
+        ls -la gradle/wrapper/
+        file gradle/wrapper/gradle-wrapper.jar
+    
+    - name: Create gradle-wrapper.properties
+      run: |
+        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+        echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.2-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+        cat gradle/wrapper/gradle-wrapper.properties
+    
+    - name: Create gradlew
+      run: |
+        cat > gradlew << 'EOF'
+        #!/bin/sh
+        APP_HOME=$(cd "$(dirname "$0")" && pwd)
+        APP_BASE_NAME=$(basename "$0")
+        DEFAULT_JVM_OPTS="-Xmx2048m"
+        warn() { echo "$*"; }
+        die() { echo "$*"; exit 1; }
+        cygwin=false
+        msys=false
+        case "$(uname)" in
+          CYGWIN*) cygwin=true ;;
+          MINGW*) msys=true ;;
+        esac
+        if [ -n "$JAVA_HOME" ]; then
+            JAVACMD="$JAVA_HOME/bin/java"
+        else
+            JAVACMD="java"
+            which java >/dev/null 2>&1 || die "ERROR: JAVA_HOME not set"
+        fi
+        set -- $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS \
+            "-Dorg.gradle.appname=$APP_BASE_NAME" \
+            -classpath "\"$APP_HOME/gradle/wrapper/gradle-wrapper.jar\"" \
+            org.gradle.wrapper.GradleWrapperMain "$@"
+        exec "$JAVACMD" "$@"
+        EOF
+        chmod +x gradlew
+    
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+    
+    - name: Verify gradle wrapper files
+      run: |
+        ls -la gradle/wrapper/
+        file gradle/wrapper/gradle-wrapper.jar
+        ls -la gradlew
+    
+    - name: Build APK with Gradle
+      run: ./gradlew assembleDebug
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChessAI-APK
+        path: app/build/outputs/apk/debug/*.apk
