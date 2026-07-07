@@ -18,14 +18,13 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Setup Gradle
-      uses: gradle/gradle-build-action@v2
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
     
-    - name: Init Gradle
-      run: gradle init --type basic --dsl groovy --project-name Android-chess --no-split-project
-    
-    - name: Build APK
-      run: gradle assembleDebug
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew
+        ./gradlew assembleDebug --no-daemon
     
     - name: Upload APK
       uses: actions/upload-artifact@v4
